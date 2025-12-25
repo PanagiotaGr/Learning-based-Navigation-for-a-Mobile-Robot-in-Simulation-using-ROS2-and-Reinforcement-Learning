@@ -235,9 +235,7 @@ This model can be loaded for evaluation or further fine-tuning.
 
 
 ## 11. Evaluation and Future Work
-
-The framework is designed for systematic **quantitative evaluation** and MSc/PhD-level extensions.  
-Potential evaluation metrics include:
+ Potential evaluation metrics include:
 
 - **Success rate** (percentage of episodes where the goal is reached)
 - **Collision rate** and minimum distance to obstacles
@@ -254,29 +252,17 @@ Promising directions for future work:
 - **Multi-goal navigation** and dynamic obstacle scenarios
 
 
-## 12. Academic Relevance
-
-This project demonstrates:
-
-- Competence in **robotics simulation** and **ROS 2 development**
-- Ability to design and implement **learning-based control systems**
-- Solid understanding of **MDP formulation** and **RL training pipelines**
-- Awareness of **reproducibility**, **benchmarking**, and **research extensions**
-
-Therefore, the framework is suitable as:
-
-- A **foundation for an MSc dissertation**
-- Supporting material for a **PhD proposal**
-- A starting point for **research lab projects**
-- A strong addition to a **robotics or AI portfolio**
 
 
-## 13. Author
+
+
+
+## 12. Author
 
 **Panagiota Grosdouli**
 
 
-## 14. License
+## 13. License
 
 The project is intended for **academic and research use**.  
 Please cite or acknowledge the author if you use or extend this work in your own research or publications.
