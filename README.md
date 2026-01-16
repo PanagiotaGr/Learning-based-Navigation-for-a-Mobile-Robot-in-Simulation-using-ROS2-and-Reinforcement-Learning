@@ -1,265 +1,319 @@
+# Learning-based Navigation for a Mobile Robot in Simulation
 
-# Learning-based Navigation for a Mobile Robot in Simulation using ROS 2 and Reinforcement Learning
+### ROS 2 Jazzy • Gazebo • Reinforcement Learning (PPO)
 
-## 1. Overview
+> Learning-based navigation framework for a differential-drive mobile robot using **ROS 2 (Jazzy)**, **Gazebo**, and **Reinforcement Learning**. A **TurtleBot3 Burger** is trained in simulation with **2D LiDAR** observations and **continuous velocity commands**, forming a complete **MDP-based control pipeline** suitable for MSc-level research and future **sim-to-real transfer**.
 
-This project implements a learning-based navigation framework for a differential-drive mobile robot using **ROS 2 (Jazzy)**, **Gazebo**, and **Reinforcement Learning (RL)**.  
-A **TurtleBot3 Burger** is trained in simulation to navigate using **2D LiDAR** observations as input and **continuous velocity commands** as actions, yielding a complete **MDP-based control pipeline** suitable for MSc-level research and subsequent **sim-to-real transfer**.
+---
+
+## Table of Contents
+
+* [Overview](#overview)
+* [Objectives](#objectives)
+* [Problem Formulation as an MDP](#problem-formulation-as-an-mdp)
+
+  * [State Space (Observation)](#state-space-observation)
+  * [Action Space (Continuous Control)](#action-space-continuous-control)
+  * [Reward Function](#reward-function)
+  * [Termination Conditions](#termination-conditions)
+* [System Architecture](#system-architecture)
+* [Implemented Features](#implemented-features)
+* [Software Requirements](#software-requirements)
+* [Installation and Setup](#installation-and-setup)
+* [Running the Simulation](#running-the-simulation)
+* [Reinforcement Learning Environment](#reinforcement-learning-environment)
+* [Training with PPO](#training-with-ppo)
+* [Evaluation and Future Work](#evaluation-and-future-work)
+* [Author](#author)
+
+---
+
+## Overview
+
+This project implements a learning-based navigation framework for a differential-drive mobile robot using **ROS 2 (Jazzy)**, **Gazebo**, and **Reinforcement Learning (RL)**.
+A **TurtleBot3 Burger** is trained in simulation to navigate using **2D LiDAR** observations as input and **continuous velocity commands** as actions.
 
 The framework is designed to be:
 
-- **Modular** (ROS 2 package structure)
-- **Reproducible** (fixed configuration and training scripts)
-- **Research-ready** (clear MDP definition and RL integration)
-- **Extensible** (easy to extend to new tasks, robots, and algorithms)
+* **Modular** (ROS 2 package structure)
+* **Reproducible** (fixed configuration + training scripts)
+* **Research-ready** (explicit MDP definition and RL integration)
+* **Extensible** (easy to extend to new tasks, robots, and algorithms)
 
+---
 
-## 2. Objectives
+## Objectives
 
-The main objectives of this work are to:
+The main objectives are:
 
-1. Develop a **ROS 2-based navigation environment** suitable for continuous-control RL algorithms.
-2. Integrate **Gazebo simulation**, **LiDAR sensing**, and **odometry feedback** into a closed-loop control setup.
-3. Formulate **state, action, and reward functions** under a clear **Markov Decision Process (MDP)** definition.
-4. Train navigation policies using **Proximal Policy Optimization (PPO)** from **Stable-Baselines3**.
-5. Provide a **reusable and extensible framework** that can support MSc theses, PhD proposals, and research lab projects.
+1. Build a **ROS 2-based navigation environment** suitable for continuous-control RL.
+2. Integrate **Gazebo**, **LiDAR**, and **odometry feedback** into a closed-loop control pipeline.
+3. Define **state, action, and reward** under a clear **Markov Decision Process (MDP)** formulation.
+4. Train navigation policies using **Proximal Policy Optimization (PPO)** with **Stable-Baselines3**.
+5. Provide a reusable framework suitable for **MSc theses**, PhD proposals, and research projects.
 
-Possible application areas include:
+Example application areas:
 
-- Obstacle avoidance benchmarks  
-- Goal-directed navigation  
-- Sim-to-real transfer for mobile robots  
+* Obstacle avoidance benchmarks
+* Goal-directed navigation
+* Sim-to-real transfer for mobile robots
 
+---
 
-## 3. Problem Formulation as an MDP
+## Problem Formulation as an MDP
 
-Robot navigation is modeled as a **Markov Decision Process (MDP)** defined by the tuple  
-\( (\mathcal{S}, \mathcal{A}, P, R, \gamma) \).
+Robot navigation is modeled as a Markov Decision Process (MDP) defined by:
 
-### 3.1 State Space (Observation)
+<p align="center">
+  <img alt="MDP tuple" src="https://latex.codecogs.com/svg.image?\Large%20(\mathcal{S},\mathcal{A},P,R,\gamma)" />
+</p>
+
+### State Space (Observation)
 
 At each time step, the agent observes:
 
-- **Downsampled LiDAR scan**: a vector of range values from the 2D laser scanner.
-- **Distance-to-goal**: Euclidean distance between the robot and the target pose.
-- **Heading feature**: relative orientation between the robot’s heading and the goal direction.
+* **Downsampled LiDAR scan**: a vector of range values from the 2D laser scanner
+* **Distance-to-goal**: Euclidean distance between robot and target pose
+* **Heading feature**: relative orientation between robot heading and goal direction
 
-Formally, the state can be written as:
+A compact state representation can be written as:
 
-
-
-### 3.2 Action Space (Continuous Control)
-
-The action is a continuous 2D vector of velocity commands for a differential-drive robot:
-
-
+<p align="center">
+  <img alt="state definition" src="https://latex.codecogs.com/svg.image?\Large%20s_t=[\tilde{\mathbf{r}}_t,\ d_t,\ \Delta\psi_t]" />
+</p>
 
 where:
 
+* <img alt="r_t" src="https://latex.codecogs.com/svg.image?\tilde{\mathbf{r}}_t" /> is the downsampled LiDAR vector
+* <img alt="d_t" src="https://latex.codecogs.com/svg.image?d_t" /> is the distance-to-goal
+* <img alt="Delta psi" src="https://latex.codecogs.com/svg.image?\Delta\psi_t" /> is the heading error (goal direction relative to robot heading)
 
+---
 
+### Action Space (Continuous Control)
 
-Both are bounded by the TurtleBot3’s physical limits and by safety constraints imposed in the environment.
+The action is a continuous 2D vector of velocity commands for a differential-drive robot:
 
-### 3.3 Reward Function
+<p align="center">
+  <img alt="action definition" src="https://latex.codecogs.com/svg.image?\Large%20a_t=[v_t,\ \omega_t]" />
+</p>
 
-The reward function is designed to encourage **goal-reaching** while discouraging **collisions** and inefficient motion:
+where:
 
-- A penalty proportional to the **distance to the goal**.
-- A **large negative reward** when the robot is close to collision or actually collides.
-- A **positive terminal reward** when the robot successfully reaches the goal region.
+* <img alt="v_t" src="https://latex.codecogs.com/svg.image?v_t" /> is the linear velocity (m/s)
+* <img alt="omega_t" src="https://latex.codecogs.com/svg.image?\omega_t" /> is the angular velocity (rad/s)
 
-In simplified form:
+Both are bounded by TurtleBot3 physical limits and safety constraints imposed by the environment:
 
-- Large positive reward: goal reached  
-- Large negative reward: collision  
-- Shaping terms: distance reduction, smooth motion, time penalty (optional)
+<p align="center">
+  <img alt="action bounds" src="https://latex.codecogs.com/svg.image?\Large%20v_t\in[v_{\min},v_{\max}],\ \omega_t\in[\omega_{\min},\omega_{\max}]" />
+</p>
 
-### 3.4 Termination Conditions
+---
 
-An episode terminates when any of the following occurs:
+### Reward Function
 
-- The robot reaches the goal within a predefined tolerance (success).
-- The robot collides with an obstacle or leaves the valid workspace (failure).
-- A maximum time horizon is reached (timeout).
+The reward encourages **goal-reaching** while discouraging **collisions** and inefficient behaviour. A practical shaped form is:
 
-This formulation enables **fair comparison** with classical navigation baselines and systematic **RL algorithm evaluation**.
+<p align="center">
+  <img alt="reward" src="https://latex.codecogs.com/svg.image?\Large%20r_t=\alpha(d_{t-1}-d_t)-\beta\cdot\mathbb{1}[\text{collision}]+\rho\cdot\mathbb{1}[\text{goal}]-\lambda" />
+</p>
 
+Interpretation:
 
-## 4. System Architecture
+* <img alt="distance progress" src="https://latex.codecogs.com/svg.image?\alpha(d_{t-1}-d_t)" />: reward progress toward the goal
+* <img alt="collision term" src="https://latex.codecogs.com/svg.image?-\beta\cdot\mathbb{1}[\text{collision}]" />: collision penalty
+* <img alt="goal term" src="https://latex.codecogs.com/svg.image?\rho\cdot\mathbb{1}[\text{goal}]" />: terminal goal reward
+* <img alt="time penalty" src="https://latex.codecogs.com/svg.image?-\lambda" />: optional per-step time penalty
 
-The system follows a modular ROS 2 architecture:
+This formulation enables fair comparison with classical navigation baselines and systematic RL evaluation.
 
-- **ROS 2 Jazzy**
-  - **TurtleBot3 in Gazebo**
-    - `/scan` – LiDAR measurements
-    - `/odom` – Odometry feedback
-    - `/cmd_vel` – Velocity commands
-  - **RL Environment (Gym-compatible)**
-    - Wraps ROS 2 topics and services
-    - Provides `reset()` and `step()` interfaces
-  - **RL Agent (PPO, Stable-Baselines3)**
-    - Interacts with the environment
-    - Trains a navigation policy
-    - Provides trained models for evaluation
+---
 
-This separation between **simulation**, **environment**, and **agent** eases debugging, benchmarking, and extensions (e.g., new robots or sensors).
+### Termination Conditions
 
+An episode terminates when:
 
-## 5. Implemented Features
+* **Success**: robot reaches the goal within tolerance
+* **Failure**: collision, or robot leaves the valid workspace
+* **Timeout**: maximum horizon reached
 
-The project currently includes:
+---
 
-- ✅ **ROS 2 package**: `rl_nav`
-- ✅ **Baseline random navigation controller** for comparison
-- ✅ **Gym-compatible RL environment** wrapping ROS 2 and Gazebo
-- ✅ **Continuous action space** over linear and angular velocity
-- ✅ **State representation** based on LiDAR, distance-to-goal, and heading
-- ✅ **Reward shaping and termination conditions**
-- ✅ **Gazebo integration** with TurtleBot3 Burger
-- ✅ **PPO training pipeline** using Stable-Baselines3
-- ✅ **Reproducible project structure** for MSc-level work
+## System Architecture
 
+High-level components:
 
-## 6. Software Requirements
+* **ROS 2 Jazzy**
 
-The framework has been tested with the following setup:
+  * **TurtleBot3 Burger in Gazebo**
 
-- **Operating System**: Ubuntu 24.04
-- **ROS 2**: Jazzy
-- **Simulator**: Gazebo
-- **Robot model**: TurtleBot3 Burger
-- **Python**: 3.12
-- **RL Library**: Stable-Baselines3 (PPO)
-- Additional ROS 2 packages:
-  - `turtlebot3`
-  - `turtlebot3_gazebo`
-  - standard ROS 2 navigation dependencies (for potential comparison baselines)
+    * `/scan` – LiDAR measurements
+    * `/odom` – odometry feedback
+    * `/cmd_vel` – velocity commands
+  * **RL Environment (Gym-compatible)**
 
+    * wraps ROS 2 topics/services
+    * provides `reset()` and `step()`
+  * **RL Agent (PPO, Stable-Baselines3)**
 
-## 7. Installation and Setup
+    * trains a navigation policy
+    * saves trained models for evaluation
+
+This separation between **simulation**, **environment**, and **agent** simplifies debugging, benchmarking, and extensions (e.g., new robots/sensors).
+
+---
+
+## Implemented Features
+
+* ✅ ROS 2 package: `rl_nav`
+* ✅ Baseline random navigation controller (for comparison)
+* ✅ Gym-compatible RL environment wrapping ROS 2 and Gazebo
+* ✅ Continuous action space over linear & angular velocity
+* ✅ LiDAR + goal features observation design
+* ✅ Reward shaping and termination logic
+* ✅ Gazebo integration with TurtleBot3 Burger
+* ✅ PPO training pipeline using Stable-Baselines3
+* ✅ Reproducible structure suitable for MSc-level work
+
+---
+
+## Software Requirements
+
+Tested setup:
+
+* **Ubuntu**: 24.04
+* **ROS 2**: Jazzy
+* **Simulator**: Gazebo
+* **Robot**: TurtleBot3 Burger
+* **Python**: 3.12
+* **RL Library**: Stable-Baselines3 (PPO)
+
+Additional ROS 2 packages (typical):
+
+* `turtlebot3`
+* `turtlebot3_gazebo`
+* standard ROS 2 dependencies (Nav2 optional, for classical baseline comparisons)
+
+---
+
+## Installation and Setup
 
 1. Source ROS 2:
 
-   ```bash
-   source /opt/ros/jazzy/setup.bash
-   ```
+```bash
+source /opt/ros/jazzy/setup.bash
+```
 
-2. Set the TurtleBot3 model:
+2. Set TurtleBot3 model:
 
-   ```bash
-   export TURTLEBOT3_MODEL=burger
-   ```
+```bash
+export TURTLEBOT3_MODEL=burger
+```
 
-3. Build and source the ROS 2 workspace containing `rl_nav`:
+3. Build and source the ROS 2 workspace:
 
-   ```bash
-   cd ~/ros2_ws
-   colcon build
-   source install/setup.bash
-   ```
+```bash
+cd ~/ros2_ws
+colcon build
+source install/setup.bash
+```
 
-4. Ensure your Python virtual environment for RL is created (optional but recommended):
+4. Create an RL virtual environment (recommended):
 
-   ```bash
-   python3 -m venv ~/rl_venv
-   source ~/rl_venv/bin/activate
-   pip install stable-baselines3[extra]
-   ```
+```bash
+python3 -m venv ~/rl_venv
+source ~/rl_venv/bin/activate
+pip install stable-baselines3[extra]
+```
 
+---
 
-## 8. Running the Simulation
+## Running the Simulation
 
 1. Launch TurtleBot3 in Gazebo:
 
-   ```bash
-   source /opt/ros/jazzy/setup.bash
-   export TURTLEBOT3_MODEL=burger
-   ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
-   ```
+```bash
+source /opt/ros/jazzy/setup.bash
+export TURTLEBOT3_MODEL=burger
+ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
+```
 
-2. In a separate terminal, source the workspace and start the RL environment or baseline controller (examples will depend on your node/launch file names):
+2. In a separate terminal, source the workspace and run a baseline controller (example):
 
-   ```bash
-   source ~/ros2_ws/install/setup.bash
-   ros2 run rl_nav random_controller    # example baseline
-   ```
+```bash
+source ~/ros2_ws/install/setup.bash
+ros2 run rl_nav random_controller
+```
 
+---
 
-## 9. Reinforcement Learning Environment
+## Reinforcement Learning Environment
 
-The RL environment is implemented in:
+The RL environment is implemented at:
 
 ```text
 rl_nav/rl_nav/env.py
 ```
 
-It exposes the standard Gym-like API:
+It exposes a Gym-like API:
 
-- `reset()` – resets the simulation and returns the initial observation
-- `step(action)` – applies the action, advances the simulation, and returns:
-  - next observation
-  - reward
-  - done flag
-  - info dictionary
+* `reset()` → resets simulation and returns the initial observation
+* `step(action)` → applies action and returns `(obs, reward, done, info)`
 
-It also defines:
+It defines:
 
-- `observation_space` – LiDAR-based observation vector plus goal-related features
-- `action_space` – continuous 2D control over `[linear_velocity, angular_velocity]`
+* `observation_space` → LiDAR vector plus goal-related features
+* `action_space` → continuous 2D control `[linear_velocity, angular_velocity]`
 
-The environment is fully compatible with **Stable-Baselines3** workflows.
+The environment is compatible with **Stable-Baselines3** workflows.
 
+---
 
-## 10. Training with PPO
+## Training with PPO
 
 1. Activate the RL virtual environment:
 
-   ```bash
-   source ~/rl_venv/bin/activate
-   ```
+```bash
+source ~/rl_venv/bin/activate
+```
 
-2. Run the PPO training script:
+2. Run training:
 
-   ```bash
-   python3 train_ppo.py
-   ```
+```bash
+python3 train_ppo.py
+```
 
-3. After training, the model is stored under:
+3. Output model:
 
-   ```text
-   models_ppo/ppo_turtlebot.zip
-   ```
+```text
+models_ppo/ppo_turtlebot.zip
+```
 
 This model can be loaded for evaluation or further fine-tuning.
 
+---
 
-## 11. Evaluation and Future Work
- Potential evaluation metrics include:
+## Evaluation and Future Work
 
-- **Success rate** (percentage of episodes where the goal is reached)
-- **Collision rate** and minimum distance to obstacles
-- **Episode length** and path efficiency
-- **Energy consumption** approximations (e.g., based on commanded velocities)
+Potential evaluation metrics:
 
-Promising directions for future work:
+* **Success rate** (goal reached)
+* **Collision rate** and minimum distance to obstacles
+* **Episode length** and path efficiency
+* **Energy proxies** (e.g., based on commanded velocities)
 
-- **Domain randomization** (textures, lighting, sensor noise, obstacle layouts)
-- **Curriculum learning** (progressively more complex environments)
-- **Transfer learning** from simulation to a physical TurtleBot3
-- **Comparison with classical planners** (e.g., move_base, Nav2)
-- **Algorithmic comparison**: PPO vs SAC vs TD3 for continuous navigation
-- **Multi-goal navigation** and dynamic obstacle scenarios
+Future directions:
 
+* Domain randomization (textures, lighting, sensor noise, obstacle layouts)
+* Curriculum learning (progressively harder scenarios)
+* Sim-to-real transfer to a physical TurtleBot3
+* Comparison with classical planners (Nav2 / move_base-style baselines)
+* Algorithmic comparison: PPO vs SAC vs TD3
+* Multi-goal navigation and dynamic obstacle scenarios
 
+---
 
-
-
-
-
-## 12. Author
+## Author
 
 **Panagiota Grosdouli**
-
-
-
